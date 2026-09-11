@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: workflowrag
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/workflowrag}
+    username: ${DB_USERNAME:workflowrag}
+    password: ${DB_PASSWORD:workflowrag}
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/changelog-master.yml
+
+workflowrag:
+  sources:
+    - id: game-files
+      type: LOCAL_FILE
+      name: Game files
+      description: Game design documentation
+      update-policy: AUTHORITATIVE_SNAPSHOT
+      pipeline-id: default-ingestion
+      configuration:
+        root: D:/knowledge/game
+
+    - id: java-notes
+      type: LOCAL_FILE
+      name: Java notes
+      description: Java and Spring notes
+      update-policy: AUTHORITATIVE_SNAPSHOT
+      pipeline-id: default-ingestion
+      configuration:
+        root: D:/knowledge/java
+
+  chunking:
+    max-characters: 2400
+
+  embedding:
+    provider: ollama
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${EMBEDDING_MODEL:bge-m3}
+    dimensions: 1024
+    batch-size: 16
+    timeout: 60s
+
+  retrieval:
+    default-limit: 5
+    max-limit: 50
+    min-score: 0.35

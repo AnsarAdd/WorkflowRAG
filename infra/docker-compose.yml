@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: workflowrag-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: workflowrag
+      POSTGRES_USER: workflowrag
+      POSTGRES_PASSWORD: workflowrag_local
+
+    ports:
+      - "55432:5432"
+
+    volumes:
+      - workflowrag-postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U workflowrag -d workflowrag"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  workflowrag-postgres-data:

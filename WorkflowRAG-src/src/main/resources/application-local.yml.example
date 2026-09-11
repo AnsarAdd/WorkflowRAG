@@ -1,0 +1,9 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:55432/workflowrag
+    username: workflowrag
+    password: workflowrag_local

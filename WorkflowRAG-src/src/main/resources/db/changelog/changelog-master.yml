@@ -1,0 +1,48 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-document-versioning
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/001-create-document--document-versioning-table.sql
+            relativeToChangelogFile: true
+
+  - changeSet:
+      id: 002-create-workflow-runtime
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/002-create-workflow-runtime-table.sql
+            relativeToChangelogFile: true
+
+  - changeSet:
+      id: 003-create-document-section
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/003-create-document-section-table.sql
+            relativeToChangelogFile: true
+
+  - changeSet:
+      id: 004-create-document-chunk
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/004-create-document-chunk-table.sql
+            relativeToChangelogFile: true
+
+  - changeSet:
+      id: 005-create-chunk-embedding
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/005-create-chunk-embedding-table.sql
+            relativeToChangelogFile: true
+
+  - changeSet:
+      id: 006-create-retrieval-chunk
+      author: Urusov Ansar
+      changes:
+        - sqlFile:
+            path: 2026/09/006-create-retrieval-chunk-table.sql
+            relativeToChangelogFile: true

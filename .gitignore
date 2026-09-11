@@ -1,0 +1,57 @@
+# Maven and Java build output
+**/target/
+**/build/
+*.class
+*.war
+*.ear
+
+# IDE settings
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+.nb-gradle/
+nbproject/private/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+application-local.yml
+application-local.yaml
+application-local.properties
+application-secrets.yml
+application-secrets.yaml
+application-secrets.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Logs, crash dumps and temporary files
+logs/
+*.log
+*.hprof
+hs_err_pid*
+replay_pid*
+*.tmp
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated Spring Initializr help
+HELP.md
