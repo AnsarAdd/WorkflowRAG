@@ -7,6 +7,7 @@ import com.ansaradd.workflowragsrc.source.model.Source;
 import com.ansaradd.workflowragsrc.source.model.SourceUpdatePolicy;
 import com.ansaradd.workflowragsrc.source.service.SourceRegistry;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
@@ -66,6 +67,18 @@ public class PropertiesSourceRegistry
 
     this.sources =
         Map.copyOf(sourceMap);
+  }
+
+  @Override
+  public List<Source> findAll() {
+    return sources.values()
+        .stream()
+        .sorted(
+            java.util.Comparator.comparing(
+                Source::id
+            )
+        )
+        .toList();
   }
 
   @Override

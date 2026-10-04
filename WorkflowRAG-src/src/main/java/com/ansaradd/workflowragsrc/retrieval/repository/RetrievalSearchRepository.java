@@ -12,7 +12,7 @@ public interface RetrievalSearchRepository {
       String modelRevision,
       int dimensions,
       double minScore,
-      String sourceId,
+      List<String> sourceIds,
       int limit
   );
 }

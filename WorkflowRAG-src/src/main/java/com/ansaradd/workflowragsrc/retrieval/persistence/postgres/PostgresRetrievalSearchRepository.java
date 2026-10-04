@@ -31,13 +31,9 @@ public class PostgresRetrievalSearchRepository
       String modelRevision,
       int dimensions,
       double minScore,
-      String sourceId,
-      int limit) {
-    if (minScore < -1.0 || minScore > 1.0) {
-      throw new IllegalArgumentException(
-          "minScore must be between -1 and 1"
-      );
-    }
+      List<String> sourceIds,
+      int limit
+  ) {
     Objects.requireNonNull(
         queryEmbedding,
         "queryEmbedding must not be null"
@@ -49,6 +45,10 @@ public class PostgresRetrievalSearchRepository
     Objects.requireNonNull(
         model,
         "model must not be null"
+    );
+    Objects.requireNonNull(
+        sourceIds,
+        "sourceIds must not be null"
     );
 
     if (provider.isBlank()) {
@@ -78,74 +78,114 @@ public class PostgresRetrievalSearchRepository
       );
     }
 
+    if (minScore < -1.0 || minScore > 1.0) {
+      throw new IllegalArgumentException(
+          "minScore must be between -1 and 1"
+      );
+    }
+
     if (limit <= 0) {
       throw new IllegalArgumentException(
           "limit must be positive"
       );
     }
-    return jdbcClient.sql("""
-            WITH candidates AS (
-                SELECT
-                    d.id AS document_id,
-                    dv.id AS document_version_id,
-                    s.id AS section_id,
-                    c.id AS chunk_id,
-                    d.source_id,
-                    d.external_document_id,
-                    s.title AS section_title,
-                    c.content,
-                    1 - (
-                        e.embedding
-                        <=>
-                        CAST(:queryEmbedding AS vector)
-                    ) AS score
-                FROM retrieval_chunk r
-                JOIN document_chunk c
-                  ON c.id = r.chunk_id
-                JOIN document_section s
-                  ON s.id = c.section_id
-                JOIN document_version dv
-                  ON dv.id = s.document_version_id
-                JOIN document d
-                  ON d.id = dv.document_id
-                JOIN chunk_embedding e
-                  ON e.chunk_id = c.id
-                WHERE dv.status = 'ACTIVE'
-                  AND e.provider = :provider
-                  AND e.model = :model
-                  AND e.dimensions = :dimensions
-                  AND (
-                      CAST(:sourceId AS VARCHAR) IS NULL
-                      OR d.source_id = CAST(:sourceId AS VARCHAR)
-                  )
-            )
+
+    String sourceFilter =
+        sourceIds.isEmpty()
+            ? ""
+            : "AND d.source_id IN (:sourceIds)";
+
+    String sql = """
+        WITH candidates AS (
             SELECT
-                document_id,
-                document_version_id,
-                section_id,
-                chunk_id,
-                source_id,
-                external_document_id,
-                section_title,
-                content,
-                score
-            FROM candidates
-            WHERE score >= :minScore
-            ORDER BY
-                score DESC,
-                chunk_id
-            LIMIT :limit
-            """)
-        .param(
-            "queryEmbedding",
-            new PGvector(queryEmbedding)
+                d.id AS document_id,
+                dv.id AS document_version_id,
+                s.id AS section_id,
+                c.id AS chunk_id,
+                d.source_id,
+                d.external_document_id,
+                s.title AS section_title,
+                c.content,
+                1 - (
+                    e.embedding
+                    <=>
+                    CAST(:queryEmbedding AS vector)
+                ) AS score
+            FROM retrieval_chunk r
+            JOIN document_chunk c
+              ON c.id = r.chunk_id
+            JOIN document_section s
+              ON s.id = c.section_id
+            JOIN document_version dv
+              ON dv.id = s.document_version_id
+            JOIN document d
+              ON d.id = dv.document_id
+            JOIN chunk_embedding e
+              ON e.chunk_id = c.id
+            WHERE dv.status = 'ACTIVE'
+              AND e.provider = :provider
+              AND e.model = :model
+              AND e.dimensions = :dimensions
+              %s
         )
-        .param("provider", provider)
-        .param("model", model)
-        .param("dimensions", dimensions)
-        .param("minScore", minScore)
-        .param("sourceId", sourceId)
-        .param("limit", limit)
+        SELECT
+            document_id,
+            document_version_id,
+            section_id,
+            chunk_id,
+            source_id,
+            external_document_id,
+            section_title,
+            content,
+            score
+        FROM candidates
+        WHERE score >= :minScore
+        ORDER BY
+            score DESC,
+            chunk_id
+        LIMIT :limit
+        """.formatted(sourceFilter);
+
+    JdbcClient.StatementSpec statement =
+        jdbcClient.sql(sql)
+            .param(
+                "queryEmbedding",
+                new PGvector(queryEmbedding)
+            )
+            .param(
+                "provider",
+                provider
+            )
+            .param(
+                "model",
+                model
+            )
+            .param(
+                "modelRevision",
+                modelRevision
+            )
+            .param(
+                "dimensions",
+                dimensions
+            )
+            .param(
+                "minScore",
+                minScore
+            )
+            .param(
+                "limit",
+                limit
+            );`
+
+    if (!sourceIds.isEmpty()) {
+      statement =
+          statement.param(
+              "sourceIds",
+              sourceIds
+          );
+    }
+
+    return statement
         .query(this::mapHit)
         .list();
   }

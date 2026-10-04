@@ -5,7 +5,6 @@ import com.ansaradd.workflowragsrc.retrieval.config.RetrievalProperties;
 import com.ansaradd.workflowragsrc.retrieval.model.RetrievalHit;
 import com.ansaradd.workflowragsrc.retrieval.repository.RetrievalSearchRepository;
 import com.ansaradd.workflowragsrc.retrieval.service.RetrievalService;
-import com.ansaradd.workflowragsrc.source.service.SourceRegistry;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
@@ -17,28 +16,33 @@ public class DefaultRetrievalService
   private final EmbeddingProvider embeddingProvider;
   private final RetrievalSearchRepository searchRepository;
   private final RetrievalProperties properties;
-  private final SourceRegistry sourceRegistry;
 
   public DefaultRetrievalService(
       EmbeddingProvider embeddingProvider,
       RetrievalSearchRepository searchRepository,
-      RetrievalProperties properties, SourceRegistry sourceRegistry
+      RetrievalProperties properties
   ) {
-    this.embeddingProvider = embeddingProvider;
-    this.searchRepository = searchRepository;
-    this.properties = properties;
-    this.sourceRegistry = sourceRegistry;
+    this.embeddingProvider =
+        embeddingProvider;
+    this.searchRepository =
+        searchRepository;
+    this.properties =
+        properties;
   }
 
   @Override
   public List<RetrievalHit> search(
       String query,
-      String sourceId,
+      List<String> sourceIds,
       int limit
   ) {
     Objects.requireNonNull(
         query,
         "query must not be null"
+    );
+    Objects.requireNonNull(
+        sourceIds,
+        "sourceIds must not be null"
     );
 
     String normalizedQuery =
@@ -47,17 +51,6 @@ public class DefaultRetrievalService
     if (normalizedQuery.isEmpty()) {
       throw new IllegalArgumentException(
           "query must not be blank"
-      );
-    }
-
-    String normalizedSourceId =
-        normalizeSourceId(
-            sourceId
-        );
-
-    if (normalizedSourceId != null) {
-      sourceRegistry.getRequired(
-          normalizedSourceId
       );
     }
 
@@ -89,27 +82,8 @@ public class DefaultRetrievalService
         embeddingProvider.revision(),
         embeddingProvider.dimensions(),
         properties.minScore(),
-        normalizedSourceId,
+        sourceIds,
         limit
     );
-  }
-
-  private String normalizeSourceId(
-      String sourceId
-  ) {
-    if (sourceId == null) {
-      return null;
-    }
-
-    String normalized =
-        sourceId.strip();
-
-    if (normalized.isEmpty()) {
-      throw new IllegalArgumentException(
-          "sourceId must not be blank"
-      );
-    }
-
-    return normalized;
   }
 }

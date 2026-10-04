@@ -7,7 +7,7 @@ public interface RetrievalService {
 
   List<RetrievalHit> search(
       String query,
-      String sourceId,
+      List<String> sourceIds,
       int limit
   );
 }

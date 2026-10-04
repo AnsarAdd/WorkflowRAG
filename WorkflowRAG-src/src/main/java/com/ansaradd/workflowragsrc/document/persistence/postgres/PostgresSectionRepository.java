@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -157,6 +158,34 @@ public class PostgresSectionRepository
         )
         .query(this::mapSection)
         .list();
+  }
+
+  @Override
+  public Optional<Section> findById(
+      UUID id
+  ) {
+    Objects.requireNonNull(
+        id,
+        "id must not be null"
+    );
+
+    return jdbcClient.sql("""
+          SELECT
+              id,
+              document_version_id,
+              stable_key,
+              parent_id,
+              section_order,
+              title,
+              level,
+              content,
+              content_hash
+          FROM document_section
+          WHERE id = :id
+          """)
+        .param("id", id)
+        .query(this::mapSection)
+        .optional();
   }
 
   private void upsertWithoutParent(

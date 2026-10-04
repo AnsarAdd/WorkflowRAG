@@ -2,6 +2,7 @@ package com.ansaradd.workflowragsrc.chunk.repository;
 
 import com.ansaradd.workflowragsrc.chunk.model.Chunk;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ChunkRepository {
@@ -19,5 +20,13 @@ public interface ChunkRepository {
 
   List<Chunk> findByDocumentVersionId(
       UUID documentVersionId
+  );
+
+  Optional<Chunk> findById(UUID id);
+
+  List<Chunk> findNeighbors(
+      UUID sectionId,
+      int chunkIndex,
+      int distance
   );
 }

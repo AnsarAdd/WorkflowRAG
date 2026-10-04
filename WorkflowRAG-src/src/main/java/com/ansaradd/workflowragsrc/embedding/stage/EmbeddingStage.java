@@ -288,7 +288,7 @@ public class EmbeddingStage implements IdempotentWorkflowStage {
               chunk.id(),
               embeddingProvider.id(),
               embeddingProvider.model(),
-              null,
+              embeddingProvider.revision(),
               embeddingProvider.dimensions(),
               expectedFingerprints.get(
                   chunk.id()
@@ -418,6 +418,7 @@ public class EmbeddingStage implements IdempotentWorkflowStage {
           "composer=" + textComposer.version()
               + "\nprovider=" + embeddingProvider.id()
               + "\nmodel=" + embeddingProvider.model()
+              + "\nrevision=" + embeddingProvider.revision()
               + "\ndimensions=" + embeddingProvider.dimensions()
               + "\ntext=" + text;
 

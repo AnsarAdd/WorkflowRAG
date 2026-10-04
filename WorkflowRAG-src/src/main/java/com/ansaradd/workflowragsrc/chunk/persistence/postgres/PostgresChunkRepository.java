@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -78,6 +79,100 @@ public class PostgresChunkRepository
         documentVersionId,
         chunks
     );
+  }
+
+  @Override
+  public Optional<Chunk> findById(
+      UUID id
+  ) {
+    Objects.requireNonNull(
+        id,
+        "id must not be null"
+    );
+
+    return jdbcClient.sql("""
+            SELECT
+                c.id,
+                c.section_id,
+                c.chunk_index,
+                c.content,
+                c.content_hash,
+                c.split_section
+            FROM document_chunk c
+            WHERE c.id = :id
+            """)
+        .param(
+            "id",
+            id
+        )
+        .query(this::mapChunk)
+        .optional();
+  }
+
+  @Override
+  public List<Chunk> findNeighbors(
+      UUID sectionId,
+      int chunkIndex,
+      int distance
+  ) {
+    Objects.requireNonNull(
+        sectionId,
+        "sectionId must not be null"
+    );
+
+    if (chunkIndex < 0) {
+      throw new IllegalArgumentException(
+          "chunkIndex must not be negative: "
+              + chunkIndex
+      );
+    }
+
+    if (distance < 0) {
+      throw new IllegalArgumentException(
+          "distance must not be negative: "
+              + distance
+      );
+    }
+
+    int fromIndex =
+        Math.max(
+            0,
+            chunkIndex - distance
+        );
+
+    int toIndex =
+        (int) Math.min(
+            Integer.MAX_VALUE,
+            (long) chunkIndex + distance
+        );
+
+    return jdbcClient.sql("""
+            SELECT
+                c.id,
+                c.section_id,
+                c.chunk_index,
+                c.content,
+                c.content_hash,
+                c.split_section
+            FROM document_chunk c
+            WHERE c.section_id = :sectionId
+              AND c.chunk_index BETWEEN :fromIndex AND :toIndex
+            ORDER BY c.chunk_index
+            """)
+        .param(
+            "sectionId",
+            sectionId
+        )
+        .param(
+            "fromIndex",
+            fromIndex
+        )
+        .param(
+            "toIndex",
+            toIndex
+        )
+        .query(this::mapChunk)
+        .list();
   }
 
   @Override

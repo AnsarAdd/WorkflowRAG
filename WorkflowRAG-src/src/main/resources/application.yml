@@ -34,6 +34,10 @@ workflowrag:
   chunking:
     max-characters: 2400
 
+  context:
+    small-section-max-chars: 4000
+    neighbor-distance: 1
+
   embedding:
     provider: ollama
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
@@ -46,3 +50,19 @@ workflowrag:
     default-limit: 5
     max-limit: 50
     min-score: 0.35
+
+  reranking:
+    enabled: false
+    provider: onnx
+    model: bge-reranker-v2-m3
+    revision: ""
+    model-path: ${RERANKING_MODEL_PATH:}
+    tokenizer-path: ${RERANKING_TOKENIZER_PATH:}
+    max-length: 1024
+    normalize: true
+    candidate-multiplier: 4
+
+  source-routing:
+    enabled: true
+    max-sources: 3
+    min-token-length: 3

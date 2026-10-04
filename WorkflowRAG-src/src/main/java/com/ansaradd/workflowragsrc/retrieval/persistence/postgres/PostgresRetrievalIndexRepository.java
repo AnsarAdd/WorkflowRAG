@@ -133,9 +133,26 @@ public class PostgresRetrievalIndexRepository
   ) {
     return jdbcClient.sql("""
             INSERT INTO retrieval_chunk (
-                chunk_id
+                chunk_id,
+                search_vector
             )
-            SELECT c.id
+            SELECT
+                c.id,
+                setweight(
+                    to_tsvector(
+                        'simple'::regconfig,
+                        COALESCE(s.title, '')
+                    ),
+                    'A'
+                )
+                ||
+                setweight(
+                    to_tsvector(
+                        'simple'::regconfig,
+                        c.content
+                    ),
+                    'B'
+                )
             FROM document_chunk c
             JOIN document_section s
               ON s.id = c.section_id

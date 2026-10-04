@@ -1,21 +1,22 @@
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE
+EXTENSION IF NOT EXISTS vector;
 
 
 CREATE TABLE chunk_embedding
 (
-    id                     UUID          NOT NULL,
-    chunk_id               UUID          NOT NULL,
+    id                     UUID         NOT NULL,
+    chunk_id               UUID         NOT NULL,
 
-    provider               VARCHAR(64)   NOT NULL,
-    model                  VARCHAR(255)  NOT NULL,
-    model_revision         VARCHAR(255),
+    provider               VARCHAR(64)  NOT NULL,
+    model                  VARCHAR(255) NOT NULL,
+    model_revision         VARCHAR(255) NOT NULL,
 
-    dimensions             INTEGER       NOT NULL,
-    processing_fingerprint VARCHAR(64)   NOT NULL,
+    dimensions             INTEGER      NOT NULL,
+    processing_fingerprint VARCHAR(64)  NOT NULL,
 
     embedding              vector(1024)  NOT NULL,
 
-    created_at             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at             TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_chunk_embedding
         PRIMARY KEY (id),

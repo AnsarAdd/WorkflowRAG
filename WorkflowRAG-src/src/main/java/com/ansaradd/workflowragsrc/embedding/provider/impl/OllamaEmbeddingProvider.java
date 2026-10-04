@@ -3,10 +3,12 @@ package com.ansaradd.workflowragsrc.embedding.provider.impl;
 import com.ansaradd.workflowragsrc.embedding.config.EmbeddingProperties;
 import com.ansaradd.workflowragsrc.embedding.exception.InvalidEmbeddingDimensionsException;
 import com.ansaradd.workflowragsrc.embedding.provider.EmbeddingProvider;
+import com.ansaradd.workflowragsrc.embedding.provider.ollama.OllamaModelRevisionResolver;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -18,13 +20,20 @@ public class OllamaEmbeddingProvider
 
   private static final String PROVIDER_ID = "ollama";
 
+  private final String baseUrl;
   private final String model;
   private final int dimensions;
   private final int batchSize;
+  private final Duration timeout;
+
   private final EmbeddingModel embeddingModel;
+  private final OllamaModelRevisionResolver revisionResolver;
+
+  private volatile String revision;
 
   public OllamaEmbeddingProvider(
-      EmbeddingProperties properties
+      EmbeddingProperties properties,
+      OllamaModelRevisionResolver revisionResolver
   ) {
     if (!PROVIDER_ID.equalsIgnoreCase(
         properties.provider()
@@ -35,21 +44,18 @@ public class OllamaEmbeddingProvider
       );
     }
 
+    this.baseUrl = properties.baseUrl();
     this.model = properties.model();
     this.dimensions = properties.dimensions();
     this.batchSize = properties.batchSize();
+    this.timeout = properties.timeout();
+    this.revisionResolver = revisionResolver;
 
     this.embeddingModel =
         OllamaEmbeddingModel.builder()
-            .baseUrl(
-                properties.baseUrl()
-            )
-            .modelName(
-                properties.model()
-            )
-            .timeout(
-                properties.timeout()
-            )
+            .baseUrl(baseUrl)
+            .modelName(model)
+            .timeout(timeout)
             .build();
   }
 
@@ -65,7 +71,34 @@ public class OllamaEmbeddingProvider
 
   @Override
   public String revision() {
-    return "";
+    String current =
+        revision;
+
+    if (current != null) {
+      return current;
+    }
+
+    synchronized (this) {
+      if (revision == null) {
+        String resolved =
+            revisionResolver.resolve(
+                baseUrl,
+                model,
+                timeout
+            );
+
+        if (resolved.isBlank()) {
+          throw new IllegalStateException(
+              "Resolved Ollama model revision must not be blank: "
+                  + model
+          );
+        }
+
+        revision = resolved;
+      }
+
+      return revision;
+    }
   }
 
   @Override
