@@ -7,6 +7,9 @@ import com.ansaradd.workflowragsrc.workflow.repository.JobRepository;
 import com.ansaradd.workflowragsrc.workflow.repository.JobStepRepository;
 import com.ansaradd.workflowragsrc.workflow.service.JobLifecycleService;
 import java.util.Objects;
+import com.ansaradd.workflowragsrc.document.repository.DocumentVersionRepository;
+import com.ansaradd.workflowragsrc.document.model.DocumentVersionStatus;
+import com.ansaradd.workflowragsrc.workflow.exception.JobNotFoundException;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,13 +18,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class DefaultJobLifecycleService
     implements JobLifecycleService {
 
+  private final DocumentVersionRepository versionRepository;
   private final JobRepository jobRepository;
   private final JobStepRepository jobStepRepository;
 
   public DefaultJobLifecycleService(
       JobRepository jobRepository,
-      JobStepRepository jobStepRepository
+      JobStepRepository jobStepRepository,
+      DocumentVersionRepository versionRepository
   ) {
+    this.versionRepository = versionRepository;
     this.jobRepository = jobRepository;
     this.jobStepRepository = jobStepRepository;
   }
@@ -67,8 +73,11 @@ public class DefaultJobLifecycleService
   }
 
   @Override
+  @Transactional
   public Job start(UUID jobId) {
-    return jobRepository.start(jobId);
+    Job job = jobRepository.start(jobId);
+    versionRepository.resume(job.documentVersionId());
+    return job;
   }
 
   @Override
@@ -88,13 +97,15 @@ public class DefaultJobLifecycleService
   }
 
   @Override
+  @Transactional
   public void fail(
       UUID jobId,
       String error
   ) {
-    jobRepository.markFailed(
-        jobId,
-        error
-    );
+    Job job = jobRepository.findById(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
+    jobRepository.markFailed(jobId, error);
+    if (versionRepository.getContent(job.documentVersionId()).status() == DocumentVersionStatus.BUILDING) {
+      versionRepository.markFailed(job.documentVersionId());
+    }
   }
 }

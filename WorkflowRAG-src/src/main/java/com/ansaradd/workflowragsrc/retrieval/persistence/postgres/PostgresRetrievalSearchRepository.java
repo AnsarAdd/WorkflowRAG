@@ -125,6 +125,7 @@ public class PostgresRetrievalSearchRepository
             WHERE dv.status = 'ACTIVE'
               AND e.provider = :provider
               AND e.model = :model
+              AND e.model_revision = :modelRevision
               AND e.dimensions = :dimensions
               %s
         )
@@ -175,7 +176,7 @@ public class PostgresRetrievalSearchRepository
             .param(
                 "limit",
                 limit
-            );`
+            );
 
     if (!sourceIds.isEmpty()) {
       statement =

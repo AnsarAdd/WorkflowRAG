@@ -23,4 +23,6 @@ public interface DocumentVersionRepository {
   void activate(UUID versionId);
 
   void markFailed(UUID versionId);
+
+  void resume(UUID versionId);
 }

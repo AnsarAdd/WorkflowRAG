@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/workflowrag}
+    username: ${DB_USERNAME:workflowrag}
+    password: ${DB_PASSWORD:workflowrag_local}
+
+workflowrag:
+  sources:
+    - id: demo
+      type: LOCAL_FILE
+      name: Demo knowledge
+      description: WorkflowRAG example documentation
+      update-policy: AUTHORITATIVE_SNAPSHOT
+      pipeline-id: default-ingestion
+      configuration:
+        root: ${KNOWLEDGE_ROOT:./knowledge}
+  reranking:
+    enabled: ${RERANKING_ENABLED:false}
+    revision: ${RERANKING_REVISION:local}

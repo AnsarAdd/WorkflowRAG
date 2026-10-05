@@ -170,6 +170,7 @@ public class PostgresJobStepRepository implements JobStepRepository {
                     status,
                     attempt,
                     fingerprint,
+                    output_reference,
                     started_at,
                     completed_at,
                     error

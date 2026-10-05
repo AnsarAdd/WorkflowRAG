@@ -6,6 +6,8 @@ public record SourceIngestionResponse(
     String sourceId,
     String externalDocumentId,
     DocumentFormat format,
-    String contentHash
+    String contentHash,
+    java.util.UUID jobId,
+    String status
 ) {
 }

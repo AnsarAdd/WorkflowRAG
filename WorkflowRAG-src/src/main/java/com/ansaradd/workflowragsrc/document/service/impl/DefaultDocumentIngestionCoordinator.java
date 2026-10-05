@@ -40,7 +40,8 @@ public class DefaultDocumentIngestionCoordinator
   @Override
   public Optional<StoredDocumentVersion> process(
       PreparedDocument incomingDocument,
-      SourceUpdatePolicy updatePolicy
+      SourceUpdatePolicy updatePolicy,
+      boolean forceReindex
   ) {
     Objects.requireNonNull(
         incomingDocument,
@@ -63,10 +64,9 @@ public class DefaultDocumentIngestionCoordinator
         );
 
     DocumentVersionBuildDecision decision =
-        documentVersionBuildPolicy.decide(
-            changeStatus,
-            updatePolicy
-        );
+        forceReindex && changeStatus == DocumentChangeStatus.UNCHANGED
+            ? DocumentVersionBuildDecision.BUILD
+            : documentVersionBuildPolicy.decide(changeStatus, updatePolicy);
 
     return switch (decision) {
       case SKIP ->

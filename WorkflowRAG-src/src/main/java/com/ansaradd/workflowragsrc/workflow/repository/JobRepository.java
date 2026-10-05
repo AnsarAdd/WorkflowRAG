@@ -16,7 +16,7 @@ public interface JobRepository {
       UUID documentVersionId
   );
 
-  List<UUID> findRunningIds();
+  List<UUID> findRecoverableIds();
 
   Optional<Job> findById(UUID jobId);
 

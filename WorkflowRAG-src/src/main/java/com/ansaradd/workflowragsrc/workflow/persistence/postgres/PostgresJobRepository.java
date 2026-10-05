@@ -78,12 +78,14 @@ public class PostgresJobRepository implements JobRepository {
   }
 
   @Override
-  public List<UUID> findRunningIds() {
+  public List<UUID> findRecoverableIds() {
     return jdbcClient.sql("""
-          SELECT id
-          FROM job
-          WHERE status = 'RUNNING'
-          ORDER BY created_at
+          SELECT j.id
+          FROM job j
+          JOIN document_version v ON v.id = j.document_version_id
+          WHERE j.status IN ('PENDING', 'RUNNING')
+             OR (j.status = 'FAILED' AND v.status = 'BUILDING')
+          ORDER BY j.created_at
           """)
         .query(UUID.class)
         .list();
@@ -272,7 +274,7 @@ public class PostgresJobRepository implements JobRepository {
               completed_at = CURRENT_TIMESTAMP,
               error = :error
           WHERE id = :jobId
-            AND status = 'RUNNING'
+            AND status IN ('PENDING', 'RUNNING')
           """)
         .param("jobId", jobId)
         .param("error", error)

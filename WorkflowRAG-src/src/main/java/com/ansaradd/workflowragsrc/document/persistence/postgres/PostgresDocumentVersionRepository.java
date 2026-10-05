@@ -228,6 +228,34 @@ public class PostgresDocumentVersionRepository
     }
   }
 
+  @Override
+  @Transactional
+  public void resume(UUID versionId) {
+    UUID documentId = getRequiredDocumentId(versionId);
+    lockDocument(documentId);
+    DocumentVersionStatus status = getRequiredStatus(versionId);
+    // ACTIVE is valid when activation committed just before process shutdown.
+    if (status == DocumentVersionStatus.BUILDING || status == DocumentVersionStatus.ACTIVE) {
+      return;
+    }
+    boolean newerVersion = jdbcClient.sql("""
+        SELECT EXISTS (
+          SELECT 1 FROM document_version newer
+          JOIN document_version current ON current.id = :versionId
+          WHERE newer.document_id = current.document_id
+            AND newer.version_number > current.version_number
+        )
+        """).param("versionId", versionId).query(Boolean.class).single();
+    if (status != DocumentVersionStatus.FAILED || newerVersion) {
+      throw new InvalidDocumentVersionStateException(versionId, status, "resume superseded version");
+    }
+    if (hasBuildingVersion(documentId)) {
+      throw new DocumentVersionBuildInProgressException(documentId);
+    }
+    jdbcClient.sql("UPDATE document_version SET status = 'BUILDING' WHERE id = :id")
+        .param("id", versionId).update();
+  }
+
   private void lockDocument(UUID documentId) {
     Optional<UUID> document = jdbcClient.sql("""
             SELECT id

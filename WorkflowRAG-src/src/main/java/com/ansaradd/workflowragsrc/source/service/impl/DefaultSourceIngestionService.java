@@ -13,12 +13,17 @@ import com.ansaradd.workflowragsrc.source.service.SourceRegistry;
 import com.ansaradd.workflowragsrc.workflow.model.PipelineTemplate;
 import com.ansaradd.workflowragsrc.workflow.service.PipelineRegistry;
 import java.util.Objects;
+import com.ansaradd.workflowragsrc.source.model.SourceIngestionResult;
+import com.ansaradd.workflowragsrc.workflow.service.WorkflowExecutor;
+import com.ansaradd.workflowragsrc.workflow.repository.JobRepository;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DefaultSourceIngestionService
     implements SourceIngestionService {
 
+  private final WorkflowExecutor workflowExecutor;
+  private final JobRepository jobRepository;
   private final SourceRegistry sourceRegistry;
   private final SourceDocumentLoader sourceDocumentLoader;
   private final DocumentPreparationService documentPreparationService;
@@ -30,8 +35,12 @@ public class DefaultSourceIngestionService
       SourceDocumentLoader sourceDocumentLoader,
       DocumentPreparationService documentPreparationService,
       PipelineRegistry pipelineRegistry,
-      IngestionStartService ingestionStartService
+      IngestionStartService ingestionStartService,
+      WorkflowExecutor workflowExecutor,
+      JobRepository jobRepository
   ) {
+    this.workflowExecutor = workflowExecutor;
+    this.jobRepository = jobRepository;
     this.sourceRegistry = sourceRegistry;
     this.sourceDocumentLoader = sourceDocumentLoader;
     this.documentPreparationService = documentPreparationService;
@@ -40,7 +49,7 @@ public class DefaultSourceIngestionService
   }
 
   @Override
-  public PreparedDocument ingest(SourceIngestionRequest request) {
+  public SourceIngestionResult ingest(SourceIngestionRequest request) {
     Objects.requireNonNull(
         request,
         "request must not be null"
@@ -68,12 +77,23 @@ public class DefaultSourceIngestionService
             source.pipelineId()
         );
 
-    ingestionStartService.start(
+    String forceParameter = request.parameters().getOrDefault("forceReindex", "false");
+    if (!forceParameter.equalsIgnoreCase("true") && !forceParameter.equalsIgnoreCase("false")) {
+      throw new IllegalArgumentException("forceReindex must be true or false");
+    }
+    var job = ingestionStartService.start(
         source,
         preparedDocument,
-        pipeline
+        pipeline,
+        Boolean.parseBoolean(forceParameter)
     );
 
-    return preparedDocument;
+    if (job.isEmpty()) {
+      return new SourceIngestionResult(preparedDocument, null);
+    }
+    // start() commits version/job creation before any expensive stage executes.
+    workflowExecutor.execute(job.get().id());
+    return new SourceIngestionResult(
+        preparedDocument, jobRepository.findById(job.get().id()).orElseThrow());
   }
 }

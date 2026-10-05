@@ -8,9 +8,5 @@ import java.util.Optional;
 
 public interface IngestionStartService {
 
-  Optional<Job> start(
-      Source source,
-      PreparedDocument document,
-      PipelineTemplate pipeline
-  );
+  Optional<Job> start(Source source, PreparedDocument document, PipelineTemplate pipeline, boolean forceReindex);
 }

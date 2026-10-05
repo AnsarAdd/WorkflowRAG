@@ -62,9 +62,7 @@ public class DefaultRerankingService
         rerankingProvider.getIfAvailable();
 
     if (provider == null) {
-      throw new IllegalStateException(
-          "Reranking is not enabled or configured"
-      );
+      throw new com.ansaradd.workflowragsrc.reranking.exception.RerankingUnavailableException();
     }
 
     List<String> documents =

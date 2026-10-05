@@ -11,6 +11,9 @@ import com.ansaradd.workflowragsrc.workflow.exception.JobNotFoundException;
 import com.ansaradd.workflowragsrc.workflow.exception.PipelineNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import com.ansaradd.workflowragsrc.workflow.exception.InvalidJobStateException;
+import com.ansaradd.workflowragsrc.workflow.exception.WorkflowExecutionException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -131,6 +134,37 @@ public class GlobalExceptionHandler {
         exception.getMessage(),
         request
     );
+  }
+
+  @ExceptionHandler(InvalidJobStateException.class)
+  public ResponseEntity<ApiErrorResponse> handleJobConflict(
+      InvalidJobStateException exception, HttpServletRequest request) {
+    return error(HttpStatus.CONFLICT, "INVALID_JOB_STATE", exception.getMessage(), request);
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiErrorResponse> handleInvalidBody(
+      HttpMessageNotReadableException exception, HttpServletRequest request) {
+    return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid request body", request);
+  }
+
+  @ExceptionHandler(WorkflowExecutionException.class)
+  public ResponseEntity<ApiErrorResponse> handleWorkflowFailure(
+      WorkflowExecutionException exception, HttpServletRequest request) {
+    log.error("Workflow failed", exception);
+    return error(HttpStatus.INTERNAL_SERVER_ERROR, "WORKFLOW_FAILED", exception.getMessage(), request);
+  }
+
+  @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ApiErrorResponse> handleInvalidParameter(
+      RuntimeException exception, HttpServletRequest request) {
+    return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid request parameter", request);
+  }
+
+  @ExceptionHandler(com.ansaradd.workflowragsrc.reranking.exception.RerankingUnavailableException.class)
+  public ResponseEntity<ApiErrorResponse> handleRerankingUnavailable(
+      RuntimeException exception, HttpServletRequest request) {
+    return error(HttpStatus.SERVICE_UNAVAILABLE, "RERANKING_UNAVAILABLE", exception.getMessage(), request);
   }
 
   @ExceptionHandler(Exception.class)

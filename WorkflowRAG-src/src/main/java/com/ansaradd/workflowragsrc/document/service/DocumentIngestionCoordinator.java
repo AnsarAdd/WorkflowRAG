@@ -8,7 +8,5 @@ import java.util.Optional;
 public interface DocumentIngestionCoordinator {
 
   Optional<StoredDocumentVersion> process(
-      PreparedDocument incomingDocument,
-      SourceUpdatePolicy updatePolicy
-  );
+      PreparedDocument incomingDocument, SourceUpdatePolicy updatePolicy, boolean forceReindex);
 }

@@ -102,6 +102,9 @@ public class DefaultRetrievalExecutionService
       List<String> sourceIds,
       int limit
   ) {
+    if (!rerankingProperties.enabled()) {
+      throw new com.ansaradd.workflowragsrc.reranking.exception.RerankingUnavailableException();
+    }
     int candidateLimit =
         resolveCandidateLimit(
             limit

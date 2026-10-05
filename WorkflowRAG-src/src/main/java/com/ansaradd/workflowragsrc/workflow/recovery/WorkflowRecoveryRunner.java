@@ -59,7 +59,7 @@ public class WorkflowRecoveryRunner
 
   private void recoverRunningJobs() {
     List<UUID> jobIds =
-        jobRepository.findRunningIds();
+        jobRepository.findRecoverableIds();
 
     for (UUID jobId : jobIds) {
       jobLifecycleService.fail(

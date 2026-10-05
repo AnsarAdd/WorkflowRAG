@@ -1,9 +1,9 @@
 package com.ansaradd.workflowragsrc.source.service;
 
 import com.ansaradd.workflowragapi.model.response.SourceIngestionResponse;
-import com.ansaradd.workflowragsrc.source.model.PreparedDocument;
+import com.ansaradd.workflowragsrc.source.model.SourceIngestionResult;
 
 public interface SourceIngestionResponseMapper {
 
-  SourceIngestionResponse map(PreparedDocument document);
+  SourceIngestionResponse map(SourceIngestionResult document);
 }

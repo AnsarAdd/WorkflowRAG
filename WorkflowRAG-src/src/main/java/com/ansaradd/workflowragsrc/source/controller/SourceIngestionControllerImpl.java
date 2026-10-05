@@ -3,7 +3,7 @@ package com.ansaradd.workflowragsrc.source.controller;
 import com.ansaradd.workflowragapi.controller.SourceIngestionController;
 import com.ansaradd.workflowragapi.model.request.SourceIngestionRequest;
 import com.ansaradd.workflowragapi.model.response.SourceIngestionResponse;
-import com.ansaradd.workflowragsrc.source.model.PreparedDocument;
+import com.ansaradd.workflowragsrc.source.model.SourceIngestionResult;
 import com.ansaradd.workflowragsrc.source.service.SourceIngestionResponseMapper;
 import com.ansaradd.workflowragsrc.source.service.SourceIngestionService;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +28,7 @@ public class SourceIngestionControllerImpl implements SourceIngestionController 
   public ResponseEntity<SourceIngestionResponse> ingestSource(
       @RequestBody SourceIngestionRequest request
   ) {
-    PreparedDocument preparedDocument =
+    SourceIngestionResult preparedDocument =
         sourceIngestionService.ingest(request);
 
     return ResponseEntity.ok(

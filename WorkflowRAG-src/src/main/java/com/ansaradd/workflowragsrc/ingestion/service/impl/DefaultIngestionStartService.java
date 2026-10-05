@@ -34,7 +34,8 @@ public class DefaultIngestionStartService
   public Optional<Job> start(
       Source source,
       PreparedDocument document,
-      PipelineTemplate pipeline
+      PipelineTemplate pipeline,
+      boolean forceReindex
   ) {
     Objects.requireNonNull(source, "source must not be null");
     Objects.requireNonNull(document, "document must not be null");
@@ -43,7 +44,8 @@ public class DefaultIngestionStartService
     Optional<StoredDocumentVersion> version =
         documentIngestionCoordinator.process(
             document,
-            source.updatePolicy()
+            source.updatePolicy(),
+            forceReindex
         );
 
     if (version.isEmpty()) {
