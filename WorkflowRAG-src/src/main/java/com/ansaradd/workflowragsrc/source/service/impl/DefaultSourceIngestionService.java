@@ -1,7 +1,7 @@
 package com.ansaradd.workflowragsrc.source.service.impl;
 
 import com.ansaradd.workflowragapi.model.request.SourceIngestionRequest;
-import com.ansaradd.workflowragsrc.document.service.DocumentIngestionCoordinator;
+import com.ansaradd.workflowragsrc.preflight.service.DocumentContractValidator;
 import com.ansaradd.workflowragsrc.ingestion.service.IngestionStartService;
 import com.ansaradd.workflowragsrc.source.model.LoadedDocument;
 import com.ansaradd.workflowragsrc.source.model.PreparedDocument;
@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 public class DefaultSourceIngestionService
     implements SourceIngestionService {
 
+  private final DocumentContractValidator contractValidator;
   private final WorkflowExecutor workflowExecutor;
   private final JobRepository jobRepository;
   private final SourceRegistry sourceRegistry;
@@ -37,8 +38,10 @@ public class DefaultSourceIngestionService
       PipelineRegistry pipelineRegistry,
       IngestionStartService ingestionStartService,
       WorkflowExecutor workflowExecutor,
-      JobRepository jobRepository
+      JobRepository jobRepository,
+      DocumentContractValidator contractValidator
   ) {
+    this.contractValidator = contractValidator;
     this.workflowExecutor = workflowExecutor;
     this.jobRepository = jobRepository;
     this.sourceRegistry = sourceRegistry;
@@ -71,6 +74,8 @@ public class DefaultSourceIngestionService
         documentPreparationService.prepare(
             loadedDocument
         );
+
+    contractValidator.validate(preparedDocument);
 
     PipelineTemplate pipeline =
         pipelineRegistry.getRequired(

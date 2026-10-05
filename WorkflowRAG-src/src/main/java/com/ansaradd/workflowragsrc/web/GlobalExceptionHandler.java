@@ -167,6 +167,43 @@ public class GlobalExceptionHandler {
     return error(HttpStatus.SERVICE_UNAVAILABLE, "RERANKING_UNAVAILABLE", exception.getMessage(), request);
   }
 
+  @ExceptionHandler(com.ansaradd.workflowragsrc.preflight.exception.DocumentContractException.class)
+  public ResponseEntity<ApiErrorResponse> handleDocumentContract(
+      RuntimeException exception, HttpServletRequest request) {
+    return error(HttpStatus.UNPROCESSABLE_ENTITY, "DOCUMENT_CONTRACT_VIOLATION", exception.getMessage(), request);
+  }
+
+  @ExceptionHandler(com.ansaradd.workflowragsrc.preflight.exception.PreviewStateException.class)
+  public ResponseEntity<ApiErrorResponse> handlePreviewState(
+      com.ansaradd.workflowragsrc.preflight.exception.PreviewStateException exception,
+      HttpServletRequest request) {
+    HttpStatus status = switch (exception.code()) {
+      case "PREVIEW_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+      case "PREVIEW_EXPIRED" -> HttpStatus.GONE;
+      default -> HttpStatus.CONFLICT;
+    };
+    return error(status, exception.code(), exception.getMessage(), request);
+  }
+
+  @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+  public ResponseEntity<ApiErrorResponse> handleUploadSize(
+      RuntimeException exception, HttpServletRequest request) {
+    return error(HttpStatus.PAYLOAD_TOO_LARGE, "UPLOAD_TOO_LARGE", "Upload exceeds request size limit", request);
+  }
+
+  @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class,
+      org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+  public ResponseEntity<ApiErrorResponse> handleMissingUploadField(
+      Exception exception, HttpServletRequest request) {
+    return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Missing required request field", request);
+  }
+
+  @ExceptionHandler(com.ansaradd.workflowragsrc.source.exception.SourceLoadException.class)
+  public ResponseEntity<ApiErrorResponse> handleSourceRead(
+      RuntimeException exception, HttpServletRequest request) {
+    return error(HttpStatus.UNPROCESSABLE_ENTITY, "SOURCE_READ_FAILED", exception.getMessage(), request);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiErrorResponse> handleUnexpected(
       Exception exception,

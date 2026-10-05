@@ -9,6 +9,8 @@ import com.ansaradd.workflowragsrc.source.model.LoadedDocument;
 import com.ansaradd.workflowragsrc.source.model.Source;
 import com.ansaradd.workflowragsrc.source.model.SourceLoadContext;
 import java.io.File;
+import com.ansaradd.workflowragsrc.preflight.config.PreflightProperties;
+import com.ansaradd.workflowragsrc.preflight.exception.DocumentContractException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -21,6 +23,12 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class LocalFileSourceAdapter implements SourceAdapter {
+
+  private final PreflightProperties limits;
+
+  public LocalFileSourceAdapter(PreflightProperties limits) {
+    this.limits = limits;
+  }
 
   private static final String ROOT_CONFIGURATION_KEY = "root";
 
@@ -45,7 +53,16 @@ public class LocalFileSourceAdapter implements SourceAdapter {
         detectFormat(file);
 
     try {
-      byte[] content = Files.readAllBytes(file);
+      if (Files.size(file) > limits.maxBytes()) {
+        throw new DocumentContractException("Document exceeds size limit");
+      }
+      byte[] content;
+      try (var input = Files.newInputStream(file)) {
+        content = input.readNBytes(limits.maxBytes() + 1);
+      }
+      if (content.length > limits.maxBytes()) {
+        throw new DocumentContractException("Document exceeds size limit");
+      }
 
       String canonicalExternalDocumentId =
           toCanonicalExternalDocumentId(root, file);

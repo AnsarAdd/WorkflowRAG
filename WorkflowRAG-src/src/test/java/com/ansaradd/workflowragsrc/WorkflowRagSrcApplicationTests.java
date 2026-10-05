@@ -54,7 +54,7 @@ class WorkflowRagSrcApplicationTests {
   final HttpClient http = HttpClient.newHttpClient();
 
   @BeforeEach void reset() {
-    db.sql("TRUNCATE document, job CASCADE").update();
+    db.sql("TRUNCATE ingestion_preview, document, job CASCADE").update();
     embeddings.fail = false;
     embeddings.calls = 0;
     embeddings.revision = "test-v1";
@@ -163,6 +163,152 @@ class WorkflowRagSrcApplicationTests {
     assertEquals(2, count("SELECT count(*) FROM document_version"));
     assertEquals("test-v2", scalar("SELECT e.model_revision FROM chunk_embedding e JOIN document_chunk c ON c.id=e.chunk_id JOIN document_section s ON s.id=c.section_id JOIN document_version v ON v.id=s.document_version_id WHERE v.status='ACTIVE'"));
   }
+  @Test void previewValidatesBeforeSearchAndDoesNotCreateAJob() throws Exception {
+    Files.write(documents.resolve("invalid.txt"), new byte[]{(byte) 0xc3, 0x28});
+    var invalid = post("/api/v1/ingestions/previews/source", request("invalid.txt"));
+    assertEquals(422, invalid.statusCode(), invalid.body());
+    assertEquals(0, embeddings.calls);
+    assertEquals(0, count("SELECT count(*) FROM job"));
+    Files.writeString(documents.resolve("empty.txt"), "   \n");
+    assertEquals(422, post("/api/v1/ingestions/source", request("empty.txt")).statusCode());
+    assertEquals(0, count("SELECT count(*) FROM job"));
+  }
+
+  @Test void confirmationUsesSnapshotAndRepeatedConfirmationReturnsSameJob() throws Exception {
+    Files.writeString(documents.resolve("snapshot.md"), "# Snapshot\n\nOriginal checked content.");
+    var preview = post("/api/v1/ingestions/previews/source", request("snapshot.md"));
+    assertEquals(200, preview.statusCode(), preview.body());
+    String id = json.readTree(preview.body()).path("id").asText();
+    assertEquals("READY", json.readTree(preview.body()).path("status").asText());
+    assertEquals(0, count("SELECT count(*) FROM document_version"));
+    assertEquals(0, count("SELECT count(*) FROM job"));
+    Files.writeString(documents.resolve("snapshot.md"), "# Changed\n\nUnchecked replacement.");
+    var confirmed = post("/api/v1/ingestions/previews/" + id + "/confirm", Map.of());
+    assertEquals(200, confirmed.statusCode(), confirmed.body());
+    String jobId = json.readTree(confirmed.body()).path("jobId").asText();
+    assertFalse(jobId.isBlank());
+    assertTrue(scalar("SELECT content FROM document_chunk").contains("Original checked"));
+    var again = post("/api/v1/ingestions/previews/" + id + "/confirm", Map.of());
+    assertEquals(200, again.statusCode(), again.body());
+    assertEquals(jobId, json.readTree(again.body()).path("jobId").asText());
+    assertEquals(1, count("SELECT count(*) FROM job"));
+    assertEquals("CONFIRMED", json.readTree(get("/api/v1/ingestions/previews/" + id).body()).path("status").asText());
+  }
+
+  @Test void unchangedPreviewSkipsSearchAndStalePreviewCannotOverwriteNewerVersion() throws Exception {
+    assertEquals(200, ingest("stale.md", "# Topic\n\nFirst version.").statusCode());
+    int calls = embeddings.calls;
+    var unchanged = post("/api/v1/ingestions/previews/source", request("stale.md"));
+    assertEquals(200, unchanged.statusCode(), unchanged.body());
+    assertEquals("UNCHANGED", json.readTree(unchanged.body()).path("status").asText());
+    assertEquals(calls, embeddings.calls);
+    Files.writeString(documents.resolve("stale.md"), "# Topic\n\nProposed version.");
+    var proposal = post("/api/v1/ingestions/previews/source", request("stale.md"));
+    assertEquals(200, proposal.statusCode(), proposal.body());
+    String id = json.readTree(proposal.body()).path("id").asText();
+    assertEquals(200, ingest("stale.md", "# Topic\n\nAnother committed version.").statusCode());
+    var stale = post("/api/v1/ingestions/previews/" + id + "/confirm", Map.of());
+    assertEquals(409, stale.statusCode(), stale.body());
+    assertEquals(2, count("SELECT count(*) FROM job"));
+  }
+
+  @Test void similarityOutageIsExplicitAndExpiredPreviewIsRejected() throws Exception {
+    assertEquals(200, ingest("existing.md", "# Kafka\n\nKafka transaction handling.").statusCode());
+    embeddings.fail = true;
+    Files.writeString(documents.resolve("outage.md"), "# Kafka\n\nKafka transaction changes.");
+    var preview = post("/api/v1/ingestions/previews/source", request("outage.md"));
+    assertEquals(200, preview.statusCode(), preview.body());
+    assertEquals("PARTIAL", json.readTree(preview.body()).path("similarity").path("status").asText());
+    String id = json.readTree(preview.body()).path("id").asText();
+    db.sql("UPDATE ingestion_preview SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' WHERE id=:id")
+        .param("id", UUID.fromString(id)).update();
+    var expired = post("/api/v1/ingestions/previews/" + id + "/confirm", Map.of());
+    assertEquals(410, expired.statusCode(), expired.body());
+    assertEquals(1, count("SELECT count(*) FROM job"));
+  }
+
+  @Test void insertingAndMovingParagraphsOnlyEmbedsNewContent() throws Exception {
+    String first = "Alpha unchanged.\n\nBeta unchanged.\n\nGamma unchanged.";
+    assertEquals(200, ingest("parts.txt", first).statusCode());
+    int calls = embeddings.calls;
+    assertEquals(3, calls);
+    assertEquals(200, ingest("parts.txt", "Inserted paragraph.\n\n" + first).statusCode());
+    assertEquals(calls + 1, embeddings.calls);
+    assertEquals(200, ingest("parts.txt", "Gamma unchanged.\n\nAlpha   unchanged.\n\nBeta\nunchanged.\n\nInserted paragraph.").statusCode());
+    assertEquals(calls + 1, embeddings.calls);
+    Files.writeString(documents.resolve("parts.txt"), "Gamma unchanged.\n\nAlpha unchanged.\n\nBeta modified.\n\nInserted paragraph.");
+    var preview = post("/api/v1/ingestions/previews/source", request("parts.txt"));
+    assertEquals(200, preview.statusCode(), preview.body());
+    var changes = json.readTree(preview.body()).path("changes");
+    assertEquals(3, changes.path("unchangedParts").asInt());
+    assertEquals(1, changes.path("addedParts").asInt());
+    assertEquals(1, changes.path("removedParts").asInt());
+    int beforeConfirm = embeddings.calls;
+    String id = json.readTree(preview.body()).path("id").asText();
+    assertEquals(200, post("/api/v1/ingestions/previews/" + id + "/confirm", Map.of()).statusCode());
+    assertEquals(beforeConfirm + 1, embeddings.calls);
+  }
+
+  @Test void uploadPreviewFindsRelatedDocumentsAndConfirmsWithoutSourceFile() throws Exception {
+    assertEquals(200, ingest("related.txt", "Kafka transactions.").statusCode());
+    String boundary = "FinchUploadBoundary";
+    String body = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"sourceId\"\r\n\r\ntest-files\r\n"
+        + "--" + boundary + "\r\nContent-Disposition: form-data; name=\"externalDocumentId\"\r\n\r\nuploaded.md\r\n"
+        + "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"uploaded.md\"\r\nContent-Type: text/markdown\r\n\r\n# Kafka\n\nKafka transactions.\r\n"
+        + "--" + boundary + "--\r\n";
+    var response = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/ingestions/previews/upload"))
+        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+        .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+    assertEquals(200, response.statusCode(), response.body());
+    var report = json.readTree(response.body());
+    assertEquals("COMPLETE", report.path("similarity").path("status").asText());
+    assertFalse(report.path("similarity").path("matches").isEmpty());
+    assertTrue(report.path("similarity").path("matches").toString().contains("LEXICAL"));
+    assertTrue(report.path("similarity").path("matches").toString().contains("SEMANTIC"));
+    assertEquals(1, count("SELECT count(*) FROM job"));
+    assertFalse(Files.exists(documents.resolve("uploaded.md")));
+    assertEquals(200, post("/api/v1/ingestions/previews/" + report.path("id").asText() + "/confirm", Map.of()).statusCode());
+    assertEquals(2, count("SELECT count(*) FROM job"));
+  }
+
+  @Test void concurrentConfirmationsCreateOnlyOneJob() throws Exception {
+    Files.writeString(documents.resolve("concurrent.txt"), "Concurrent confirmation example.");
+    var preview = post("/api/v1/ingestions/previews/source", request("concurrent.txt"));
+    assertEquals(200, preview.statusCode(), preview.body());
+    String id = json.readTree(preview.body()).path("id").asText();
+    var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/ingestions/previews/" + id + "/confirm"))
+        .POST(HttpRequest.BodyPublishers.noBody()).build();
+    var first = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    var second = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    var left = first.get();
+    var right = second.get();
+    assertEquals(200, left.statusCode(), left.body());
+    assertEquals(200, right.statusCode(), right.body());
+    assertEquals(json.readTree(left.body()).path("jobId"), json.readTree(right.body()).path("jobId"));
+    assertEquals(1, count("SELECT count(*) FROM job"));
+    assertEquals("COMPLETED", scalar("SELECT status FROM job"));
+  }
+
+  @Test void unreadableSourceIsReportedWithoutStartingAJob() throws Exception {
+    var missing = post("/api/v1/ingestions/previews/source", request("does-not-exist.txt"));
+    assertEquals(422, missing.statusCode(), missing.body());
+    Files.writeString(documents.resolve("unknown.xyz"), "Content with unsupported extension.");
+    assertEquals(422, post("/api/v1/ingestions/previews/source", request("unknown.xyz")).statusCode());
+    assertEquals(0, count("SELECT count(*) FROM job"));
+    assertEquals(0, embeddings.calls);
+  }
+
+  @Test void contractLimitsRejectBeforeAnyJobOrModelCall() throws Exception {
+    Files.writeString(documents.resolve("sections.md"), "# Small\n\ntext\n\n".repeat(2001));
+    assertEquals(422, post("/api/v1/ingestions/previews/source", request("sections.md")).statusCode());
+    Files.writeString(documents.resolve("chunks.txt"), "part\n\n".repeat(10001));
+    assertEquals(422, post("/api/v1/ingestions/previews/source", request("chunks.txt")).statusCode());
+    Files.write(documents.resolve("large.txt"), new byte[10485761]);
+    assertEquals(422, post("/api/v1/ingestions/previews/source", request("large.txt")).statusCode());
+    assertEquals(0, count("SELECT count(*) FROM job"));
+    assertEquals(0, embeddings.calls);
+  }
+
   private Map<String,Object> request(String file) {
     return Map.of("sourceId", "test-files", "externalDocumentId", file);
   }

@@ -74,14 +74,10 @@ public class PostgresChunkEmbeddingRepository
           JOIN document_section source_section
             ON source_section.document_version_id =
                source_version.id
-           AND source_section.stable_key =
-               target_section.stable_key
 
           JOIN document_chunk source_chunk
             ON source_chunk.section_id =
                source_section.id
-           AND source_chunk.chunk_index =
-               target_chunk.chunk_index
 
           JOIN chunk_embedding source_embedding
             ON source_embedding.chunk_id =
@@ -90,6 +86,8 @@ public class PostgresChunkEmbeddingRepository
                :processingFingerprint
 
           WHERE target_chunk.id = :targetChunkId
+          ORDER BY source_chunk.id
+          LIMIT 1
 
           ON CONFLICT (chunk_id)
           DO UPDATE SET

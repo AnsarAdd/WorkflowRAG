@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 public class ChunkStage implements IdempotentWorkflowStage {
 
   private static final String PROCESSOR_VERSION =
-      "paragraph-chunker-v1";
+      "paragraph-chunker-v2";
 
   private final SectionRepository sectionRepository;
   private final ChunkRepository chunkRepository;

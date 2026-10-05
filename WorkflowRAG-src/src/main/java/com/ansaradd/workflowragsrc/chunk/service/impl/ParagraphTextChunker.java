@@ -7,12 +7,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ParagraphTextChunker implements TextChunker {
 
-  private static final String PARAGRAPH_SEPARATOR = "\n\n";
+  private static final Pattern FENCE =
+      Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
   private final int maxCharacters;
 
@@ -30,76 +32,70 @@ public class ParagraphTextChunker implements TextChunker {
     );
 
     String normalized = normalize(content);
-
-    if (normalized.isBlank()) {
-      return List.of();
-    }
-
     List<String> chunks = new ArrayList<>();
+    StringBuilder paragraph = new StringBuilder();
+    StringBuilder code = new StringBuilder();
+    String fence = null;
 
-    StringBuilder currentChunk =
-        new StringBuilder();
-
-    String[] paragraphs =
-        normalized.split("\\n[ \\t]*\\n+");
-
-    for (String paragraph : paragraphs) {
-      String normalizedParagraph =
-          paragraph.strip();
-
-      if (normalizedParagraph.isEmpty()) {
-        continue;
-      }
-
-      if (normalizedParagraph.length() > maxCharacters) {
-        flush(
-            currentChunk,
-            chunks
-        );
-
-        chunks.addAll(
-            splitOversizedParagraph(
-                normalizedParagraph
-            )
-        );
-
-        continue;
-      }
-
-      if (currentChunk.isEmpty()) {
-        currentChunk.append(
-            normalizedParagraph
-        );
-        continue;
-      }
-
-      int combinedLength =
-          currentChunk.length()
-              + PARAGRAPH_SEPARATOR.length()
-              + normalizedParagraph.length();
-
-      if (combinedLength <= maxCharacters) {
-        currentChunk
-            .append(PARAGRAPH_SEPARATOR)
-            .append(normalizedParagraph);
+    for (String line : normalized.split("\n", -1)) {
+      var marker = FENCE.matcher(line);
+      if (fence != null) {
+        code.append('\n').append(line);
+        if (marker.matches()
+            && marker.group(1).charAt(0) == fence.charAt(0)
+            && marker.group(1).length() >= fence.length()
+            && marker.group(2).isBlank()) {
+          addCode(code, chunks);
+          fence = null;
+        }
+      } else if (marker.matches()
+          && (marker.group(1).charAt(0) != '`'
+              || !marker.group(2).contains("`"))) {
+        addParagraph(paragraph, chunks);
+        fence = marker.group(1);
+        code.append(line);
+      } else if (line.isBlank()) {
+        addParagraph(paragraph, chunks);
       } else {
-        flush(
-            currentChunk,
-            chunks
-        );
-
-        currentChunk.append(
-            normalizedParagraph
-        );
+        if (!paragraph.isEmpty()) {
+          paragraph.append(' ');
+        }
+        paragraph.append(line);
       }
     }
 
-    flush(
-        currentChunk,
-        chunks
-    );
-
+    addParagraph(paragraph, chunks);
+    addCode(code, chunks);
     return List.copyOf(chunks);
+  }
+
+  private void addParagraph(
+      StringBuilder paragraph,
+      List<String> chunks
+  ) {
+    String normalized = paragraph.toString()
+        .replaceAll("(?U)\\s+", " ")
+        .strip();
+    paragraph.setLength(0);
+    if (normalized.isEmpty()) {
+      return;
+    }
+    if (normalized.length() <= maxCharacters) {
+      chunks.add(normalized);
+    } else {
+      chunks.addAll(splitOversizedParagraph(normalized));
+    }
+  }
+
+  private void addCode(
+      StringBuilder code,
+      List<String> chunks
+  ) {
+    // Slice without stripping: even blank lines and trailing spaces are code data.
+    for (int start = 0; start < code.length(); start += maxCharacters) {
+      chunks.add(code.substring(start, Math.min(start + maxCharacters, code.length())));
+    }
+    code.setLength(0);
   }
 
   private List<String> splitOversizedParagraph(
@@ -273,7 +269,6 @@ public class ParagraphTextChunker implements TextChunker {
   private String normalize(String content) {
     return content
         .replace("\r\n", "\n")
-        .replace('\r', '\n')
-        .strip();
+        .replace('\r', '\n');
   }
 }
